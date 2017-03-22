@@ -1,2 +1,0 @@
-# HSBC2
-HSBC CODE
