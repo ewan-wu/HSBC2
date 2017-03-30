@@ -1,0 +1,393 @@
+参考文档：06-系统集成/HSBC MBS系统-相关申请列表.xlsx
+
+密钥库密钥：WebAS--（HSBC电脑-桌面/MBS/PROD/hsbc_https_cert_dr/cert_passwd.txt）
+
+-------------------------------------------++++++++++++++++++++++++++++++++++-----------------------------------------------
+
+报文加核签API
+（江南天安SM2国密证书API）
+
+1.在新环境中，使用生成主机信息工具（06-系统集成\证书管理\SM2-报文加密证书\生成主机信息工具），直接执行，生产dat文件；
+
+	1.1.对应的系统环境（win32/win64/linux）使用对应的生成信息工具，生成对应的dat文件（生成的文件名是相同的），
+	1.2.将不同环境（win32/win64/linux，PROD/DR环境）生成的dat文件，改名，区分不同环境的生成文件，不能混淆
+
+
+2.将dat文件发送到 江南天安，要求生成永久生效证书（测试环境申请临时即可）；
+	2.1.生成的证书文件类似为license.lic（*.lic文件）
+
+----------九牧、Jomoo有生成好的生产环境文件，可以直接使用------
+文件位置（06-系统集成\证书管理\SM2-报文加密证书\生产企业端_dat&lic文件）
+------------------------------------------------------------------------
+
+HSBC的生产、灾备环境的证书，也有现成的
+06-系统集成\证书管理\SM2-报文加密证书
+生产证书：license_auth_prd_0909.lic
+灾备证书：license_auth_dr_0909.lic
+
+
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+
+
+3.将返回的证书，部署到相关环境中，
+	将返回的证书，放至/home/mbs/mbsfe/etc/cert/目录中
+
+
+4.配置 signcfg.ini 文件；
+	4.1.signcfg.ini文件位置
+		/home/mbs/mbsfe/etc/signcfg.ini
+	4.2.配置signcfg.ini文件
+		在文件任意位置增加下列语句
+		LicensePath=/home/mbs/mbsfe/etc/cert/license_auth_Linux_server.lic---（绝对路径）
+
+5.配置mbs_bdg_out.ini文件
+	5.1.mbs_bdg_out.ini文件位置
+		/home/mbs/mbsfe/etc/mbs_bdg_out.ini
+	5.2.配置mbs_bdg_out.ini文件
+		将[init_calls]中的SM2_init.args的值改为1，表示需要加密
+		将[end_calls]中的GenMsg.args的倒数第3个参数的值改为1，其他参数在另外步骤修改
+		
+-------------------------------------------------++++++++++++++++++++++++++++++++++-----------------------------------------------------
+
+报文加核签证书
+（国密加密证书）
+
+1.将 江南天安 提供的证书文件 根证书（CFCA_SM2_Root.cer）、公钥证书（sm2prod20151106.cer）、
+        私钥证书（sm2prod20151106.priv）部署到mbsfe/etc/cert
+
+证书位置（06-系统集成\证书管理\SM2-报文加密证书\证书文件-生产环境），有生成好的文件，可以直接使用
+	将三个文件放至指定文件夹/home/mbs/mbsfe/etc/cert/
+	/home/mbs/mbsfe/etc/cert/CFCA_SM2_Root.cer
+    /home/mbs/mbsfe/etc/cert/sm2prod20151106.cer
+    /home/mbs/mbsfe/etc/cert/sm2prod20151106.priv
+
+
+
+2.修改mbsfe/etc/signcfg.ini 和 mbs_bdg_out.ini 中的证书文件名
+	2.1.文件位置
+		/home/mbs/mbsfe/etc/signcfg.ini
+	2.2.signcfg.ini文件配置
+		在文件中增加下列语句（任意位置）
+		KeyStorePath=/home/mbs/mbsfe/etc/cert
+		SM2RootCert=/home/mbs/mbsfe/etc/cert/CFCA_SM2_Root.cer--（配置根证书）
+
+
+
+	2.3.mbs_bdg_out.ini文件位置
+		/home/mbs/mbsfe/etc/mbs_bdg_out.ini
+
+		
+	2.4.mbs_bdg_out.ini文件配置
+		将[end_calls]中的GenMsg.args的倒数第2个参数的值改为改为公钥证书名字（不需要后缀名）sm2prod20151106----（配置公钥证书）
+
+-------------------------------------------------++++++++++++++++++++++++++++++++++-----------------------------------------------------
+
+HTTPS证书
+(企业客户)
+
+参考文件：
+	11-系统改造\客户端接入-201512-Jomoo-工行接口改造\https证书\Jomoo证书申请步骤.txt
+
+
+
+（PKCS12模式下的操作步骤---该系列的操作，是将client端提供的数据，在HSBC的系统上进行操作，生成需要的文件，给予client端或者是HSBC端）
+1.制作证书库
+	keytool -genkey -trustcacerts -dname "CN=yqzl.jomoo.cn,OU=Jommoo,O=Jommoo,L=Shanghai,ST=Shanghai,C=CN" -alias tomcat -keyalg RSA -keystore Jomoo_Server_P12.keystore -storetype PKCS12 -storepass 123456 -validity 3650
+---结果文件 证书库：Jomoo_Server_P12.keystore（第5步、第6步使用）
+
+
+
+2.证书请求文件（加密选项：-sigalg MD5withRSA  、 -sigalg SHA1withRSA ）
+	2.1.生成证书请求文件
+		keytool -certreq -alias tomcat -file Jomoo_Server_P12.csr -keystore Jomoo_Server_P12.keystore -storetype PKCS12 -storepass 123456 
+	----结果文件 证书请求文件：Jomoo_Server_P12.Csr（需要给到企业相关负责人，他们会回给两个相关证书1_root_bundle.crt，2_yqzl.jomoo.cn.crt）
+
+	2.2.查看
+		openssl req -in Jomoo_Server_P12.csr -text –noout
+		keytool -list -v -keystore Jomoo_Server_P12.keystore -storepass 123456 -storetype PKCS12
+
+
+
+3.签发（发送到Dominic）
+	
+	
+	
+	
+4.生成导出的.cer文件
+		解压这个for Apache.zip文件。解压出两个文件1_root_bundle.crt，2_yqzl.jomoo.cn.crt;（或者直接找到这两个文件）
+		打开1_root_bundle.crt，复制到文件0_WoSign.cer；
+		
+		4.1.双击打开1_root_bundle.crt文件
+			点击“详细信息”->“复制到文件”->“下一步”->“下一步”->“浏览”->填写文件名（需要带后缀.cer）
+		
+			在指定位置生成指定生成的.cer文件
+
+
+
+5.导入(用于client端，设置使用)
+	复制一个：
+		cp Jomoo_Server_P12.keystore Jomoo_server_all_p12.keystore
+	导入：
+		keytool -import -trustcacerts -alias root -file 0_WoSign.cer -keystore Jomoo_server_all_p12.keystore -storetype PKCS12  -storepass 123456 
+		keytool -import -trustcacerts -alias ca -file 1_root_bundle.crt -keystore Jomoo_server_all_p12.keystore -storetype PKCS12  -storepass 123456 
+		keytool -import -alias tomcat -file 2_yqzl.jomoo.cn.crt -keystore Jomoo_server_all_p12.keystore -storetype PKCS12  -storepass 123456
+	
+	查看：
+		keytool -list -v -keystore Jomoo_server_all_p12.keystore -storepass 123456 -storetype PKCS12
+	
+	--结果文件
+			Jomoo_server_all_p12.keystore（用于client端，设置使用）
+			
+	设置client端
+		编辑C:\E-Client\Server\conf\ server.xml文件，设置如下：
+		keystorePass="123456"
+		keystoreFile="C:/E-Client/cert_https/Jomoo_server_all_p12.keystore"
+		keystoreType="PKCS12"
+
+		
+		
+6.制作根证书文件（直接用根证书 Jomoo_0_WoSign.pem --给到HSBC端）
+	查看：
+		keytool -printcert -file 0_WoSign.cer
+	制作一个空的keystore（p12）：
+		cp Jomoo_Server_P12.keystore Jomoo_0_WoSign.p12
+		--查看文件
+		keytool -list -v -keystore Jomoo_0_WoSign.p12 -storepass 123456 -storetype PKCS12
+		--清空文件内容
+		keytool -delete -alias tomcat -keystore Jomoo_0_WoSign.p12 -storepass 123456 -storetype PKCS12
+		--查看文件，确定是否清空了内容
+		keytool -list -v -keystore Jomoo_0_WoSign.p12 -storepass 123456 -storetype PKCS12
+		
+		keytool -import -trustcacerts -alias root -file 0_WoSign.cer -keystore Jomoo_0_WoSign.p12 -storetype PKCS12 -storepass 123456
+	格式转换：
+		openssl pkcs12 -in Jomoo_0_WoSign.p12 -nodes -out Jomoo_0_WoSign_all.pem
+		openssl x509 -in Jomoo_0_WoSign_all.pem -out Jomoo_0_WoSign.pem
+
+	--结果文件
+		Jomoo_0_WoSign.pem（给到HSBC端）
+
+
+
+7.企业端https 根证书配置：
+   	
+   	7.1.将生成的Jomoo_0_WoSign.pem放入指定位置
+   		/home/mbs/mbsfe/etc/cert/https_cert/root_cert（即$(MBSFE_HOME)/etc/cert/https_cert/root_cert）
+   	
+   	7.2.更改配置文件
+		配置文件位置：/home/mbs/mbsfe/etc/mbsfe.ini
+   	
+		[httpcli2]下的内容中
+	   	
+		#SSL 根证书
+			plug.ca=$(MBSFE_HOME)/etc/cert/https_cert/root_cert
+		
+	7.3.配置方法：
+			拿到所有已转换格式的企业端根证书文件
+			执行 c_rehash /home/mbs/mbsfe/etc/cert/https_cert/root_cert
+
+-------------------------------------------------++++++++++++++++++++++++++++++++++-----------------------------------------------------
+
+
+HTTPS证书
+（汇丰）
+
+结合 20160320-证书支持格式转换测试.docx文档（HSBC电脑-桌面/MBS/20160328——ICBC&CMB）
+从第3步：可以将证书转换成pkcs12格式
+
+
+私钥和签名的创建
+
+
+1.将kdb证书转换成pkcs12格式
+	1.1.操作流程
+		security->SSL certificate key management->Key stores and certificates->点击需要的的kdb文件->presonal certificates
+			->选中需要的文件，点击上方的Export按钮
+	1.2.操作说明（点击Export后进入的界面）
+		1.2.1.Certificate alias to export（要导出的证书别名）--名字不可改
+		1.2.2.key store password（密钥库密码）
+			WebAS
+		1.2.3.Alias（别名）
+			导出的文件别名--随便填，具体名字是由Key file name（密钥文件名）确定的
+		1.2.4.key store file（密钥库文件）
+			1.2.4.1.Key file name（密钥文件名）
+				写具体的导出文件的绝对路径以及文件名（/tmp/test-certificate/testtp.p12）
+			1.2.4.2.Types（类型）
+				默认选择的PKCS12
+			1.2.4.3.Key file password（密钥文件密码）
+				WebAS
+			
+	最后点击apply
+	根据Key file name（密钥文件名）中指定路径，生成指定文件
+	
+	
+2.将*.p12转换为pem格式
+	2.1.登陆生产对应的后台环境
+	
+	2.2.进入Key file name（密钥文件名）指定的路径(*.p12所在的路径)
+		openssl pkcs12 -in testtp.p12 -nodes -out server.pem
+		密码：WebAS
+
+3.根据生成的pem文件，重新生产MBS需要的私钥和证书
+	在*.pem文件的路径中
+	3.1.生成私钥文件
+		openssl rsa -in server.pem -out server-key.pem
+	
+	3.2.生成证书文件
+		openssl x509 -in server.pem -out server-cert.pem
+
+
+
+	
+	
+	
+	
+2.信任证书的创建（*.jks文件的产生）
+1.创建jks类型证书
+
+	security->SSL certificate key management->Key stores and certificates->点击上方的“New...”
+	
+	1.1.进入生成jks的界面
+	
+	1.1.1.Name
+		mbs_trust（随便取）
+	
+	1.1.2.Description
+		mbs_trust（随便取）
+	
+	1.1.3.Management scope
+		不动，默认选中的:(cell):wascell
+	
+	1.1.4.*Path
+		生成的jks文件的绝对路径+文件名
+	
+	1.1.5.Password
+		WebAS
+	
+	1.1.6.Confirm password
+		WebAS
+	
+	1.1.7.Type
+		默认选择的：JKS(一定要是jks，不然eclient端会报证书错误)
+	
+	点击apply按钮，在*path指定路径，生成指定文件*.jks
+
+
+
+2.从原证书（kdb文件）中导出公钥证书文件(*.arm)
+
+	security->SSL certificate key management->Key stores and certificates->点击需要的kdb文件->Personal certificates
+		->选中需要的文件->点击Extract..
+
+	2.1.certificate alias to extract（需要抽取的证书的别名）
+		随便取--不可改
+		
+	2.2.certificate file name（证书文件名）
+		绝对路径+导出的文件名
+	
+	
+	2.3.Data type（数据类型）
+		默认选中的
+		Base64-encoded ASCII data(基本64位编码ASCII数据)
+
+点击apply按钮，在*path指定路径，生成指定文件*.arm
+
+
+
+
+
+
+3.将公钥证书文件（*.arm）导入到信任证书文件-jks文件中（给到client端）
+
+		security->SSL certificate key management->Key stores and certificates->点击需要的jks文件->Singer certificates
+			->选中需要的文件，点击上方的add按钮
+		
+	3.1.Alias(别名)
+		可改--随便取
+		
+	3.2.File name（文件名--从哪个文件导出）
+		绝对路径+抽取文件的名字（*.arm）
+		
+	3.3.Data type（数据类型）
+		默认选择的
+		Base64-encoded ASCII data(基本64位编码ASCII数据)
+		
+	点击apply按钮，从指定的*.arm文件中，抽取信息，导入到指定的jks文件中
+	
+	
+这里只是除了将prod环境中的证书导入到jks中，还需要将DR环境中的证书，也导入到同一个jks文件中
+
+登陆dr的后台，按照1、2同样的操作，生成arm文件，传输到prod环境中（同prod产生的arm文件在同一个目录），重复3的步骤
+生成的jks文件，包含了prod环境和dr环境的公钥证书。
+
+获取命令
+pwd--
+lpwd
+lcd--改变windows端的路径
+
+get 文件名
+put 文件名
+
+
+
+
+HSBC端
+
+	更改配置文件
+	配置文件位置：/home/mbs/mbsfe/etc/mbsfe.ini
+	
+	[httpcli2]下的内容中
+
+	https 签名证书、私钥证书、密码配置
+	#SSL 证书
+		#plug.cert=/home/mbs/test/20160411_cert/server-cert2.pem(路径和现有HSBC上的一致，没有的话，创建相关路径)
+	#SSL server 私钥
+		#plug.key=/home/mbs/test/20160411_cert/server-key2.pem(路径和现有HSBC上的一致，没有的话，创建相关路径)
+	#SSL 私钥 密码
+		plug.keypass=WebAS
+
+
+
+
+
+clinet端设置
+	更改配置文件
+	配置文件位置：编辑C:\E-Client\Server\conf\ server.xml文件，设置如下（将生成的jks文件，放入client端的指定文件）：
+		truststoreFile="C:/E-Client/cert_https/testtrust.jks"
+		truststorePass=" WebAS"
+		truststoreType="JKS"
+
+
+
+
+-------------------------------------------------++++++++++++++++++++++++++++++++++-----------------------------------------------------
+
+代理服务器
+根据06-系统集成\代理服务器\MBS代理服务器说明.txt中的步骤，
+
+1.填写相关信息
+
+	1.1.根据06-系统集成\代理服务器\HSBC申请表格\Network__Request_Form.xlsx，填写相应字段
+	1.2.根据06-系统集成\代理服务器\HSBC申请表格\Port Development _ MBS Progress Update .msg的格式，发送邮件
+
+2.代理服务器配置修改
+	2.1.配置文件位置
+		/home/mbs/mbsfe/etc/mbsfe.ini
+
+	2.2.操作
+		#代理服务器
+   		plug.proxy=ip:port（若有，将语句前的#去掉，没有，则添加该语句）
+		用#注释掉，系统不再走代理服务器；去除#号，会走代理服务器
+
+	2.3.代理服务器信息
+		UAT：	intpxy6.hk.hsbc:18084			（已配置）
+		生产：	apxy1.hk.hsbc:18084			（未配置）
+
+
+
+
+
+
+
+
+
